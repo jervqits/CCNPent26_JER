@@ -1,0 +1,486 @@
+Version: 2.0   10-14-2026
+---------------
+Login: root
+Pass: C1sc0123
+
+Get IP:
+rm -rf /etc/udev/rules.d/70-persistent-net.rules
+reboot
+
+Set NetAdapters:
+NetAdapter 1: NAT (208.8.8.0/24)
+NetAdapter 2: VMNet15 (10.255.10.0/24)
+NetAdapter 3: VMNet16 (10.69.255.0/29)
+NetAdapter 4: VMNet17 (10.69.255.8/29)
+
+!@cmd
+route add 172.16.29.0 mask 255.255.255.0 10.69.255.6
+
+
+http://208.8.8.221/
+
+1.10.180.49.221 /9
+10.128.0.0/9
+
+2.172.16.45.12 /20
+172.16.32.0/20
+
+3.192.168.112.130 /27
+192.168.112.128/27
+
+4.192.168.231.75 /18
+192.168.192.0 /18
+sol: 3rd , 64i
+0 64 128 192 256
+192.168.192.0/18
+
+======
+
+Dynamic Routing
+
+!@EIGRP -C1
+conf t
+ router eigrp 100
+  no auto-summary
+  eigrp router-id 192.168.1.129
+  network 10.2.1.0 0.0.0.255
+  network 10.2.2.0 0.0.0.255
+  network 192.168.1.128 0.0.0.31
+  network 10.1.4.4 0.0.0.3
+  end
+
+
+  !@OSPF -C1
+conf t
+ router ospf 1
+  router-id 192.168.1.129
+  network 10.2.1.0 0.0.0.255 area 0
+  network 10.2.2.0 0.0.0.255 area 0
+  network 192.168.1.128 0.0.0.31 area 0
+  network 10.1.4.4 0.0.0.3 area 0
+  end
+
+!@BGP - C1
+conf t
+ router bgp 1
+  bgp log-neighbor-changes
+  neighbor 10.1.4.5 remote-as 4
+  address-family ipv4
+   neighbor 10.1.4.5 activate
+   network 192.168.1.128 mask 255.255.255.224
+   network 10.2.1.0 mask 255.255.255.0
+   network 10.2.2.0 mask 255.255.255.0
+   network 10.1.4.4 mask 255.255.255.252
+  exit-address-family
+end
+
+
+
+### EIGRP
+ - distance vector
+ - dual algorithim
+
+EIGRP Message
+1. Hello - Used to discover and maintain neighbor relationships/sessions
+2. Query - Used to request routing information from neighbors / When a route is lost EIGRP[ routers send Query messages
+3. Update - New ROUTE ADVERT
+
+
+!FIX EIGRP ROUTERS
+!@C1 ,C2
+conf t
+ no monitor session 1
+ vlan 10
+  no remote-span
+end
+
+ccnp encor exam:
+5 seconds
+delay set to infinity
+
+### EIGP Metric computation
+
+1. Bandwidth/ THROUGHPUT
+= 10^7 / Get only the Minimum BW of the interface 
+
+2. Total Delay / LATENCY
+= total DLY OF ALL THE INTERFACE / 10
+
+3. COMPOSITE METRIC
+= 256 * (THROUGHPUT + LATENCY)
+
+
+E1/2
+E1/0
+VLAN 10
+
+
+min bw: 10 000
+10 000 000 / 10 000
+1 000
+
+2010 / 10
+201
+
+1000 + 201
+= 1201
+
+= 256*1201
+= 307456
+
+
+
+#### NAME EIGRP
+
+!@C1
+config t
+ router eigrp CCNPLEVEL
+  address-family ipv4 unicast auto 100
+   eigrp router-id 192.168.1.129
+   network 10.1.4.4 0.0.0.3
+   network 10.2.1.0 0.0.0.255
+   network 10.2.2.0 0.0.0.255
+   network 192.168.1.128 0.0.0.31
+   topology base
+   no auto-summary
+end
+
+
+  !@C2
+conf t
+ router eigrp CCNPLEVEL
+  address-family ipv4 unicast auto 100
+    topology base
+   no auto-summary
+  eigrp router-id 192.168.1.130
+  network 10.1.4.8 0.0.0.3
+  network 10.2.1.0 0.0.0.255
+  network 10.2.2.0 0.0.0.255
+  network 192.168.1.128 0.0.0.31
+
+  end
+
+
+  !@R4
+conf t
+router eigrp CCNPLEVEL
+  address-family ipv4 unicast auto 100
+    topology base
+   no auto-summary
+  eigrp router-id 10.1.4.9
+  network 10.1.4.8 0.0.0.3
+  network 10.1.4.4 0.0.0.3
+  end
+
+
+
+
+  ### wide metric
+
+  given values
+  min = 10 000
+  total delay = 1010
+  
+  1. throiupuit
+  = 10^7 * 65536 / min bw
+  = 655 360 000 000 / 10 000
+  65 536 000
+
+
+  2. latency
+  = total delay psec (6 na 0) * 65536 / 10^6
+  = 1 010 000 000 * 65536 / 1 000 000
+
+
+
+  3. composite metric
+  = througput + latency
+
+  4. final metric
+  composite metric / RIB SCALE
+
+
+
+  ####
+  MIN DELAY = 10 000
+  TOTAL DELAY = (10 000 + 1 000 + 10) = 11 010
+
+  1. throughput
+  = 10^7 * 65536 / MIN DELAY
+  = 10^7 * 65536 / 10 000
+  = 65 536 000
+
+  2. latency
+  = TOTAL DELAY * 65536 / 10^6
+  = 11 010 000 000 * 65536 / 1 000 000
+  = 721 551 360 000 000 / 1 000 000
+  = 721 551 360
+
+ 3. composite metric
+  = throughput + latency
+ = 65 536 000 + 721 551 360
+ = 787 087 360
+
+ 4. ribscale
+composite metric / RIB SCALE
+ = 787 087 360 / 128
+ = 6 149 120
+
+
+
+
+ !@r5:
+
+ conf t
+ router ospf 1
+  router-id 5.5.5.5
+  network 5.5.5.5 0.0.0.0 area 352
+  network 10.1.2.8 0.0.0.3 area 352
+  network 10.1.2.12 0.0.0.3 area 352
+  end
+
+or 
+!@r5:
+ conf t
+ router ospf 1
+  router-id 5.5.5.5
+  exit
+  int lo5, e1/3 , e1/2
+   ip ospf 1 area 352
+   exit
+
+  r6:
+conf t
+ router ospf 1
+  router-id 6.6.6.6
+  exit
+ int e1/1
+  ip ospf 1 area 26
+  exit
+ int e1/2
+  ip ospf 1 area 26
+  end
+
+  or
+!@R6:
+  conf t
+ router ospf 1
+  router-id 6.6.6.6
+  network 10.1.3.4 0.0.0.3 area 26
+  network 10.1.3.0 0.0.0.3 area 26
+  network 6.6.6.6 0.0.0.0 area 26
+  end
+
+
+
+  ####
+
+  D - DOWN
+  I - INIT
+  T - TWO-WAY
+  E - EXSTART
+  E - EXCHANGE
+  L - LOAD
+  F - FULL
+
+
+  ### OSPF METRIC COST
+  -REFERENCE BW / INT BW
+
+  = 100 mbps / 10 mbps
+  = 10
++1 kapag virtual int like loopback
+
+!@R4
+
+conf t
+router ospf 1
+ auto-cost reference-bandwidth 100000
+ end
+
+EIGRP
+ bw
+ load
+ delay
+ mtu 
+ extension
+
+
+=====
+SEED METRICS
+1. OSPF -> 20
+2. EIGRP -> INFINITY
+3. RIP -> INIFINITY
+4. BGP -> IGP
+5. IS-IS -> 0
+
+
+
+##AD
+OSPF - 110
+EIGRP - 90
+RIP - 120
+IS IS - 115
+
+Lowest metric wins
+lowest ad wins
+
+## bgp pldt
+
+config t
+ router bgp 25
+ bgp log-neighbor-changes
+ neighbor 25.2.5.5 remote-as 25
+ neighbor 24.2.4.4  remote-as 34
+ neighbor 207.7.7.1  remote-as 1
+ neighbor 32.3.2.3  remote-as 34
+ address-family ipv4
+  network 25.2.5.0 mask 255.255.255.0
+  network 24.2.4.0 mask 255.255.255.0
+  network 207.7.7.0 mask 255.255.255.0
+  network 32.3.2.0 mask 255.255.255.0
+  network 22.22.22.22 mask 255.255.255.255
+  end
+
+  
+  n - notif
+  o - open
+  k - keep alive
+  u - update
+
+
+  route map
+
+  A acl
+  M match
+  S set
+
+
+
+  ### 🎯 Exercise 09: Manipulate BGP Paths using Weight Attribute via Route Maps
+
+- If we want to go to 51.51.51.51 we use ISP1:CONVERGE(208.8.8.4)
+- If we want to go to 52.52.52.52 we use ISP2:PLDT(207.7.7.2)
+- If we want to go to 53.53.53.53 we use ISP3:GLOBE(209.9.9.3)
+
+!@R1
+conf t
+access-list 51 permit host 51.51.51.51
+access-list 53 permit host 53.53.53.53
+!
+
+route-map ISPfor51 permit 10
+ match ip address 51
+ set weight 51
+route-map ISPfor51 permit 20
+!
+route-map ISPfor53 permit 10
+ match ip address 53
+ set weight 53
+route-map ISPfor53 permit 20
+!
+
+router bgp 1
+ neighbor 208.8.8.4 route-map ISPfor51 in
+ neighbor 209.9.9.3 route-map ISPfor53 in
+end
+clear ip bgp * soft
+
+
+### 🎯 Exercise 10: Manipulate BGP Paths using Weight Attribute via Route Maps
+
+- If we want to go to 54.54.54.54 we use ISP1:CONVERGE(208.8.8.4)
+- If we want to go to 55.55.55.55 we use ISP3:GLOBE(209.9.9.3)
+
+!@R1
+conf t
+access-list 54 permit host 54.54.54.54
+access-list 55 permit host 55.55.55.55
+!
+route-map ISPfor54 permit 10
+ match ip address 54
+ set weight 54
+route-map ISPfor54 permit 20
+!
+route-map ISPfor55 permit 10
+ match ip address 55
+ set weight 55
+route-map ISPfor55 permit 20
+!
+
+router bgp 1
+ neighbor 208.8.8.4 route-map ISPfor54 in
+ neighbor 209.9.9.3 route-map ISPfor55 in
+end
+clear ip bgp * soft
+
+
+conf t
+router bgp 1
+no neighbor 208.8.8.4 route-map ISPfor54 in
+no neighbor 209.9.9.3 route-map ISPfor55 in
+
+
+### Route Summarization
+SUMMARIZE THE FF ROUTES
+- 10.1.1.0/30
+- 10.1.1.4/30
+- 10.1.1.8/30
+    10.1.1.11 - broadcast
+
+OCTET = 4th
+RANGE = 0-15
+i = 16
+
+
+### 🎯 Exercise: Summarize the ff:
+- 10.10.8.0 /24
+- 10.10.9.0 /24
+- 10.10.10.0 /24
+- 10.10.11.0 /24
+
+10.10.8.0 /22
+
+!@R2
+conf t
+router ospf 1
+area 26 range 10.10.8.0 255.255.252.0
+end
+
+
+### 🎯 Excercise 13: Summarize routes from loopback 33 - loopback 36
+- 10.10.33.0   /25
+- 10.10.33.128 /25
+- 10.10.34.0   /25
+- 10.10.34.128 /25
+
+o: 3rd
+r: 33-34.255
+i:
+2i: 32
+
+10.10.32.0 /22
+
+!@R2
+conf t
+router ospf 1
+area 26 range 10.10.32.0 255.255.252.0
+end
+
+
+!@R2:
+conf t
+ip prefix-list NOLOOP seq 10 deny 10.10.8.0/22 ge 24
+ip prefix-list NOLOOP seq 20 deny 10.10.32.0/22 ge 25
+ip prefix-list NOLOOP seq 30 permit 0.0.0.0/0 le 32
+
+router ospf 1
+ area 0 filter-list prefix NOLOOP in
+ end
+
+
+!@R2, R6
+conf t
+  router ospf 1
+     area 26 stub
+     end
